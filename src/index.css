@@ -1,0 +1,281 @@
+@import 'tailwindcss';
+
+/* ───────── Design tokens: "Cuaderno & Pastel" ───────── */
+@theme {
+  --color-app: #f5f0f6;
+  --color-sheet: #ffffff;
+  --color-head: #e6dce8;
+  --color-ink: #2d1e2f;
+  --color-title: #3a2034;
+  --color-rasp: #d86c8c;
+  --color-rasp-dark: #c45676;
+  --color-plum: #683b5e;
+  --color-plum-dark: #522d4a;
+  --color-hl: #fadce6;
+  --color-hl-border: #f2b6c9;
+  --color-hl-text: #8a2846;
+  --color-pill: #f8f9fa;
+  --color-pill-border: #e2e8f0;
+  --color-pill-text: #1e293b;
+  --color-field-border: #cbd5e1;
+
+  --font-hand: 'Caveat', 'Patrick Hand', 'Kalam', cursive;
+  --font-sans: 'Inter', 'Plus Jakarta Sans', 'DM Sans', system-ui, sans-serif;
+
+  --shadow-pill: inset 0 -2px 0 rgb(15 23 42 / 0.05), 0 1px 2px rgb(15 23 42 / 0.08);
+  --shadow-paper: 0 10px 30px -12px rgb(104 59 94 / 0.25), 0 2px 6px rgb(104 59 94 / 0.08);
+}
+
+/* En pantalla "ancha" o al imprimir (A4 vertical mide < 768px) se usa el layout de tabla. */
+@custom-variant wide {
+  @media (min-width: 48rem) {
+    @slot;
+  }
+  @media print {
+    @slot;
+  }
+}
+/* Escritorio con sidebar fijo. */
+@custom-variant desk (@media (min-width: 64rem));
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--color-app);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  button,
+  select,
+  input,
+  textarea {
+    font: inherit;
+  }
+  button {
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-plum);
+    outline-offset: 2px;
+  }
+  input[type='checkbox'] {
+    accent-color: var(--color-plum);
+  }
+  ::selection {
+    background: var(--color-hl-border);
+    color: var(--color-title);
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition
+      duration-150 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-rasp {
+    @apply bg-rasp text-white shadow-md shadow-rasp/30 hover:bg-rasp-dark;
+  }
+  .btn-plum {
+    @apply bg-plum text-white shadow-sm hover:bg-plum-dark;
+  }
+  .btn-ghost {
+    @apply border border-field-border bg-white text-ink hover:bg-head/50;
+  }
+  .btn-danger {
+    @apply border border-hl-border bg-hl text-hl-text hover:bg-hl-border/60;
+  }
+  .card {
+    @apply rounded-2xl border border-head/80 bg-sheet p-4 shadow-md shadow-plum/10;
+  }
+  .field {
+    @apply w-full rounded-lg border border-field-border bg-white px-3 py-2 text-sm text-ink outline-none transition
+      focus:border-plum focus:ring-2 focus:ring-plum/40;
+  }
+  .label {
+    @apply mb-1 block text-xs font-semibold tracking-wide text-ink/70 uppercase;
+  }
+
+  /* Título manuscrito con subrayado decorativo */
+  .title-hand {
+    font-family: var(--font-hand);
+    color: var(--color-title);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.01em;
+  }
+
+  /* Auto-ajuste de altura de los textarea (field-sizing es mejora progresiva; hay fallback en JS). */
+  .autosize {
+    field-sizing: content;
+    inline-size: 100%;
+    min-block-size: 2.25rem;
+    resize: none;
+    overflow: hidden;
+  }
+
+  /* Barra "+ Añadir otro contenido…": colapsada salvo fila activa / hover / foco / táctil. */
+  .add-bar {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition:
+      grid-template-rows 0.18s ease,
+      opacity 0.18s ease;
+  }
+  .add-bar > div {
+    overflow: hidden;
+    min-block-size: 0;
+  }
+  .row-item[data-active='true'] .add-bar,
+  .row-item:hover .add-bar,
+  .row-item:focus-within .add-bar {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  @media (hover: none), (max-width: 47.99rem) {
+    .add-bar {
+      grid-template-rows: 1fr;
+      opacity: 1;
+    }
+  }
+
+  /* Rejilla del cronograma para escritorio / impresión. */
+  .sheet-grid {
+    display: grid;
+    grid-template-columns: 8.75rem minmax(0, 1fr);
+  }
+
+  /* Papel de cuaderno decorativo detrás de la app */
+  .paper {
+    position: fixed;
+    pointer-events: none;
+    background:
+      repeating-linear-gradient(to bottom, transparent 0 27px, rgb(170 150 190 / 0.18) 27px 28px),
+      #fffdf7;
+    box-shadow: 0 6px 24px -10px rgb(104 59 94 / 0.25);
+    border-radius: 6px;
+    z-index: 0;
+  }
+  .paper::before {
+    content: '';
+    position: absolute;
+    inset-block: 14px;
+    inset-inline-start: 8px;
+    inline-size: 6px;
+    background: radial-gradient(circle, rgb(245 240 246) 0 2.5px, transparent 3px) 0 0 / 6px 22px repeat-y;
+    opacity: 0.9;
+  }
+}
+
+/* ───────── Bottom sheet / diálogos nativos ───────── */
+dialog.modal {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  max-inline-size: 100vw;
+  max-block-size: 100dvh;
+  margin: auto;
+  overflow: visible;
+}
+dialog.modal::backdrop {
+  background: rgb(45 30 47 / 0.45);
+  backdrop-filter: blur(3px);
+}
+dialog.modal[open] {
+  animation: modal-in 0.2s ease-out;
+}
+dialog.modal[open]::backdrop {
+  animation: fade-in 0.2s ease-out;
+}
+@media (max-width: 47.99rem) {
+  dialog.modal.sheet {
+    margin: auto 0 0 0;
+    inline-size: 100%;
+  }
+  dialog.modal.sheet[open] {
+    animation: sheet-in 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ───────── Impresión: hoja limpia lista para abrochar ───────── */
+@page {
+  size: A4;
+  margin: 12mm;
+}
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    box-shadow: none !important;
+  }
+  .paper {
+    display: none !important;
+  }
+  .row-item,
+  .course-head {
+    break-inside: avoid;
+  }
+  textarea {
+    overflow: visible !important;
+  }
+}
+
+@media print {
+  textarea {
+    padding-right: 0.75rem !important;
+  }
+}
+
+@media print {
+  .row-item {
+    background: #fff !important;
+    outline: 0 !important;
+  }
+  .row-item button {
+    border-color: #e2e8f0 !important;
+  }
+}
