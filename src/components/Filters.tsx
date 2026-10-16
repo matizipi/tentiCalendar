@@ -4,8 +4,18 @@ import { DAY_LABELS, PRESETS, formatShort, generateDates } from '../lib/schedule
 import { useStore } from '../store/StoreContext'
 
 export function CourseSelect({ compact = false, id }: { compact?: boolean; id?: string }) {
-  const { state, activeCourse, dispatch, openDialog } = useStore()
-  const autoId = useId()
+  const { state, activeCourse, dispatch, openDialog } = useStore();
+  const autoId = useId();
+  // If there is no active course yet (e.g., state not loaded), render a placeholder select.
+  if (!activeCourse) {
+    return (
+      <div className="relative">
+        <select id={id ?? autoId} aria-label="Curso" disabled className="w-full appearance-none rounded-lg border border-field-border bg-white font-medium text-ink outline-none transition focus:border-plum focus:ring-2 focus:ring-plum/40 text-sm py-2 pr-9 pl-3">
+          <option>Cargando…</option>
+        </select>
+      </div>
+    );
+  }
   return (
     <div className="relative">
       <select
@@ -14,11 +24,11 @@ export function CourseSelect({ compact = false, id }: { compact?: boolean; id?: 
         value={activeCourse.id}
         onChange={(e) => {
           if (e.target.value === '__new__') {
-            openDialog('courses')
-            return
+            openDialog('courses');
+            return;
           }
-          dispatch({ type: 'setActiveCourse', courseId: e.target.value })
-          document.getElementById(`course-${e.target.value}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          dispatch({ type: 'setActiveCourse', courseId: e.target.value });
+          document.getElementById(`course-${e.target.value}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }}
         className={[
           'w-full appearance-none rounded-lg border border-field-border bg-white font-medium text-ink outline-none transition',
@@ -33,14 +43,11 @@ export function CourseSelect({ compact = false, id }: { compact?: boolean; id?: 
         ))}
         <option value="__new__">+ Crear curso…</option>
       </select>
-      <ChevronDown
-        size={16}
-        className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-ink/60"
-        aria-hidden
-      />
+      <ChevronDown size={16} className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-ink/60" aria-hidden />
     </div>
-  )
+  );
 }
+
 
 /** Tarjeta "Curso + Filtros del año": selector, patrones de días, rango y generación de fechas. */
 export function FiltersCard() {

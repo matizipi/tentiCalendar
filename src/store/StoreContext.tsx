@@ -74,19 +74,40 @@ interface StoreValue {
 const Ctx = createContext<StoreValue | null>(null)
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, dispatchRaw] = useReducer(reducer, undefined, loadState)
+  const [state, dispatchRaw] = useReducer(reducer, undefined, (): AppState => ({
+    version: 1,
+    courses: [],
+    activeCourseId: '',
+    showHolidays: true,
+  }));
+  const [loaded, setLoaded] = useState(false)
   // La fila 19/10 del seed arranca "activa" para mostrar la barra desplegada.
-  const [activeRowId, setActiveRowId] = useState<string | null>(() =>
-    state.courses.some((c) => c.rows.some((r) => r.id === SEED_ACTIVE_ROW_ID)) ? SEED_ACTIVE_ROW_ID : null,
-  )
-  const [focusBlockId, setFocusBlockId] = useState<string | null>(null)
-  const [dialog, setDialog] = useState<DialogName | null>(null)
-  const [editingRowId, setEditingRowId] = useState<string | null>(null)
-  const [range, setRange] = useState<DateRange>(defaultRange)
-  const [toasts, setToasts] = useState<Toast[]>([])
-  const toastSeq = useRef(0)
+  const [activeRowId, setActiveRowId] = useState<string | null>(null)
+  // Load persisted state (localStorage or Firebase) once on mount.
+  useEffect(() => {
+    let cancelled = false
+    loadState().then((s) => {
+      if (cancelled) return
+      dispatchRaw({ type: 'replace', state: s })
+      if (s.courses.some((c) => c.rows.some((r) => r.id === SEED_ACTIVE_ROW_ID))) {
+        setActiveRowId(SEED_ACTIVE_ROW_ID)
+      }
+      setLoaded(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<DialogName | null>(null);
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [range, setRange] = useState<DateRange>(defaultRange);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const toastSeq = useRef(0);
 
-  useEffect(() => saveState(state), [state])
+  useEffect(() => {
+    if (loaded) void saveState(state)
+  }, [state, loaded]);
 
   // Siempre apuntamos al estado más reciente dentro de los helpers sin recrearlos.
   const stateRef = useRef(state)
@@ -213,6 +234,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       createCourse,
     ],
   )
+
+  if (!loaded || !activeCourse) {
+    return (
+      <div role="status" aria-live="polite" style={{ padding: '2rem', textAlign: 'center' }}>
+        Cargando cronograma…
+      </div>
+    )
+  }
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
