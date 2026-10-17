@@ -1,6 +1,7 @@
 import { isValid, parseISO } from 'date-fns'
+import { HOLIDAY_TYPES, type HolidayType } from '../data/holidays'
 import { createSeedState } from '../data/seed'
-import type { AppState, ContentBlock, CourseSchedule, ScheduleRow } from '../types'
+import type { AppState, ContentBlock, CourseSchedule, LocalHoliday, ScheduleRow } from '../types'
 
 /** Clave versionada: lista para migrar o reemplazar por una API/base de datos. */
 export const STORAGE_KEY = 'cronograma-tentativo:v1'
@@ -27,6 +28,7 @@ function sanitizeRow(v: unknown): ScheduleRow | null {
     date: v.date,
     isHoliday: !!v.isHoliday,
     ...(typeof v.holidayName === 'string' ? { holidayName: v.holidayName } : {}),
+    ...(HOLIDAY_TYPES.includes(v.holidayType as HolidayType) ? { holidayType: v.holidayType as HolidayType } : {}),
     ...(v.holidayManual ? { holidayManual: true } : {}),
     blocks: blocks.length ? blocks : [{ id: `${v.id}-b`, text: '' }],
   }
@@ -38,7 +40,15 @@ function sanitizeCourse(v: unknown): CourseSchedule | null {
     ? v.selectedDaysOfWeek.filter((n): n is number => Number.isInteger(n) && n >= 0 && n <= 6)
     : []
   const rows = Array.isArray(v.rows) ? (v.rows.map(sanitizeRow).filter(Boolean) as ScheduleRow[]) : []
-  return { id: v.id, courseName: v.courseName, selectedDaysOfWeek: days, rows }
+  const validIso = (s: unknown): s is string => typeof s === 'string' && isValid(parseISO(s))
+  return {
+    id: v.id,
+    courseName: v.courseName,
+    selectedDaysOfWeek: days,
+    ...(validIso(v.rangeFrom) ? { rangeFrom: v.rangeFrom } : {}),
+    ...(validIso(v.rangeTo) ? { rangeTo: v.rangeTo } : {}),
+    rows,
+  }
 }
 
 /** Valida y normaliza un JSON importado/guardado. Lanza si no es un cronograma válido. */
@@ -50,11 +60,19 @@ export function parseState(raw: unknown): AppState {
     typeof raw.activeCourseId === 'string' && courses.some((c) => c.id === raw.activeCourseId)
       ? raw.activeCourseId
       : courses[0].id
+  const localHolidays = Array.isArray(raw.localHolidays)
+    ? raw.localHolidays.flatMap((h): LocalHoliday[] =>
+        isObj(h) && typeof h.id === 'string' && typeof h.name === 'string' && typeof h.date === 'string' && isValid(parseISO(h.date))
+          ? [{ id: h.id, date: h.date, name: h.name }]
+          : [],
+      )
+    : []
   return {
     version: 1,
     courses,
     activeCourseId,
     showHolidays: raw.showHolidays !== false,
+    localHolidays,
   }
 }
 

@@ -8,7 +8,7 @@ import {
 } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { findHoliday } from '../data/holidays'
-import type { ContentBlock, ScheduleRow } from '../types'
+import type { ContentBlock, LocalHoliday, ScheduleRow } from '../types'
 
 export const ISO = 'yyyy-MM-dd'
 
@@ -40,16 +40,24 @@ export const emptyBlock = (text = '', isHighlighted = false): ContentBlock => ({
   ...(isHighlighted ? { isHighlighted } : {}),
 })
 
-/** Crea una fila cruzando la fecha con el diccionario de feriados. */
-export function makeRow(date: string, blocks?: ContentBlock[]): ScheduleRow {
-  const h = findHoliday(date)
+/** Crea una fila cruzando la fecha con el calendario de feriados (nacionales + locales). */
+export function makeRow(date: string, blocks?: ContentBlock[], local?: LocalHoliday[]): ScheduleRow {
+  const h = findHoliday(date, local)
   return {
     id: uid(),
     date,
     isHoliday: !!h,
-    ...(h ? { holidayName: h.name } : {}),
+    ...(h ? { holidayName: h.name, holidayType: h.type } : {}),
     blocks: blocks ?? [emptyBlock()],
   }
+}
+
+/** Recalcula el feriado de una fila (salvo que el docente lo haya editado a mano). */
+export function syncRowHoliday(r: ScheduleRow, local?: LocalHoliday[]): ScheduleRow {
+  if (r.holidayManual) return r
+  const h = findHoliday(r.date, local)
+  const { holidayName: _n, holidayType: _t, ...rest } = r
+  return { ...rest, isHoliday: !!h, ...(h ? { holidayName: h.name, holidayType: h.type } : {}) }
 }
 
 /** Días de la semana (0-6) → fechas ISO dentro del rango [from, to]. */
@@ -89,12 +97,27 @@ export function sortRowsByDate(rows: ScheduleRow[]): ScheduleRow[] {
   return [...rows].sort((a, b) => a.date.localeCompare(b.date))
 }
 
+/**
+ * Suma filas nuevas a las existentes. Si la lista ya estaba ordenada por fecha se mantiene
+ * ordenada; si el docente la reordenó a mano, las nuevas se agregan al final.
+ */
+export function mergeGenerated(rows: ScheduleRow[], fresh: ScheduleRow[]): ScheduleRow[] {
+  if (fresh.length === 0) return rows
+  const sorted = rows.every((r, i) => i === 0 || rows[i - 1].date <= r.date)
+  return sorted ? sortRowsByDate([...rows, ...fresh]) : [...rows, ...sortRowsByDate(fresh)]
+}
+
+/** Una fila sin ningún texto escrito (se puede regenerar sin perder trabajo). */
+export const isRowEmpty = (r: ScheduleRow) => r.blocks.every((b) => !b.text.trim())
+
 export const DAY_LABELS: { value: number; short: string; long: string }[] = [
   { value: 1, short: 'Lu', long: 'Lunes' },
   { value: 2, short: 'Ma', long: 'Martes' },
   { value: 3, short: 'Mi', long: 'Miércoles' },
   { value: 4, short: 'Ju', long: 'Jueves' },
   { value: 5, short: 'Vi', long: 'Viernes' },
+  { value: 6, short: 'Sá', long: 'Sábado' },
+  { value: 0, short: 'Do', long: 'Domingo' },
 ]
 
 export const PRESETS: { id: string; label: string; days: number[] }[] = [

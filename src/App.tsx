@@ -1,4 +1,5 @@
 import { AddDateDialog, CoursesDialog, EditRowDialog, FiltersSheet, SettingsDialog } from './components/Dialogs'
+import { CourseConfigDialog } from './components/CourseConfig'
 import { CourseTable } from './components/CourseTable'
 import { FiltersCard, HolidayCard } from './components/Filters'
 import { Header } from './components/Header'
@@ -47,6 +48,7 @@ function Workspace() {
       <AddDateDialog />
       <EditRowDialog />
       <CoursesDialog />
+      <CourseConfigDialog />
       <SettingsDialog />
       <Toasts />
     </div>

@@ -9,7 +9,7 @@ import {
 } from '@dnd-kit/core'
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { ArrowDownUp, CalendarPlus, Plus } from 'lucide-react'
+import { ArrowDownUp, CalendarPlus, Plus, Settings } from 'lucide-react'
 import { useStore } from '../store/StoreContext'
 import type { CourseSchedule } from '../types'
 import { RowItem } from './RowItem'
@@ -85,6 +85,18 @@ export function CourseTable({ course }: { course: CourseSchedule }) {
               className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium text-ink/80 transition hover:bg-white/70 hover:text-ink disabled:opacity-40"
             >
               <Plus size={15} /> Duplicar filas
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                dispatch({ type: 'setActiveCourse', courseId: course.id })
+                openDialog('courseConfig')
+              }}
+              title="Configurar curso"
+              aria-label={`Configurar curso ${course.courseName}`}
+              className="grid size-8 place-items-center rounded-lg text-ink/70 transition hover:bg-white/70 hover:text-plum"
+            >
+              <Settings size={17} />
             </button>
           </div>
         </header>

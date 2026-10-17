@@ -14,7 +14,9 @@ import {
   emptyBlock,
   generateDates,
   insertIndexFor,
+  isRowEmpty,
   makeRow,
+  mergeGenerated,
   nextDateAfter,
   toIso,
   uid,
@@ -23,7 +25,7 @@ import { loadState, saveState } from '../lib/storage'
 import type { AppState, CourseSchedule, ScheduleRow } from '../types'
 import { reducer, type Action } from './reducer'
 
-export type DialogName = 'addDate' | 'filters' | 'courses' | 'settings'
+export type DialogName = 'addDate' | 'filters' | 'courses' | 'settings' | 'courseConfig'
 
 export interface DateRange {
   from: string
@@ -65,6 +67,11 @@ interface StoreValue {
   addDate: (courseId: string, date: string) => string
   addBlock: (rowId: string, afterBlockId?: string) => void
   generate: (courseId: string, days: number[], from: string, to: string) => { added: number; skipped: number }
+  /** Guarda nombre, días y rango del curso y genera las fechas que falten. */
+  applyCourseConfig: (
+    courseId: string,
+    cfg: { name: string; days: number[]; from: string; to: string; removeEmpty: boolean },
+  ) => { added: number; removed: number }
   appendBlankRow: (courseId: string) => void
   duplicateLastRow: (courseId: string) => void
   duplicateRow: (rowId: string) => void
@@ -101,7 +108,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogName | null>(null);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
-  const [range, setRange] = useState<DateRange>(defaultRange);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastSeq = useRef(0);
 
@@ -146,11 +152,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!course) return { added: 0, skipped: 0 }
     const existing = new Set(course.rows.map((r) => r.date))
     const dates = generateDates(days, from, to)
-    const fresh = dates.filter((d) => !existing.has(d))
-    const rows: ScheduleRow[] = fresh.map((d) => makeRow(d))
-    if (rows.length) dispatchRaw({ type: 'insertRows', courseId, rows })
-    dispatchRaw({ type: 'setDays', courseId, days })
+    const rows: ScheduleRow[] = dates.filter((d) => !existing.has(d)).map((d) => makeRow(d))
+    dispatchRaw({
+      type: 'configureCourse',
+      courseId,
+      patch: { days, from, to },
+      rows: mergeGenerated(course.rows, rows),
+    })
     return { added: rows.length, skipped: dates.length - rows.length }
+  }, [])
+
+  const applyCourseConfig = useCallback<StoreValue['applyCourseConfig']>((courseId, cfg) => {
+    const course = findCourse(courseId)
+    if (!course) return { added: 0, removed: 0 }
+    const dates = generateDates(cfg.days, cfg.from, cfg.to)
+    const wanted = new Set(dates)
+    let kept = course.rows
+    if (cfg.removeEmpty) kept = kept.filter((r) => !isRowEmpty(r) || wanted.has(r.date))
+    const existing = new Set(kept.map((r) => r.date))
+    const fresh = dates.filter((d) => !existing.has(d)).map((d) => makeRow(d))
+    dispatchRaw({
+      type: 'configureCourse',
+      courseId,
+      patch: { name: cfg.name.trim().toUpperCase() || course.courseName, days: cfg.days, from: cfg.from, to: cfg.to },
+      rows: mergeGenerated(kept, fresh),
+    })
+    return { added: fresh.length, removed: course.rows.length - kept.length }
   }, [])
 
   const appendBlankRow = useCallback((courseId: string) => {
@@ -187,6 +214,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const activeCourse = state.courses.find((c) => c.id === state.activeCourseId) ?? state.courses[0]
 
+  // El rango es propio de cada curso (con un valor por defecto si todavía no se configuró).
+  const rangeFrom = activeCourse?.rangeFrom
+  const rangeTo = activeCourse?.rangeTo
+  const activeCourseId = activeCourse?.id
+  const range = useMemo<DateRange>(() => {
+    const d = defaultRange()
+    return { from: rangeFrom ?? d.from, to: rangeTo ?? d.to }
+  }, [rangeFrom, rangeTo])
+  const setRange = useCallback(
+    (r: DateRange) => {
+      if (activeCourseId)
+        dispatchRaw({ type: 'configureCourse', courseId: activeCourseId, patch: { from: r.from, to: r.to } })
+    },
+    [activeCourseId],
+  )
+
   const value = useMemo<StoreValue>(
     () => ({
       state,
@@ -209,6 +252,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addDate,
       addBlock,
       generate,
+      applyCourseConfig,
       appendBlankRow,
       duplicateLastRow,
       duplicateRow,
@@ -223,11 +267,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dialog,
       editingRowId,
       range,
+      setRange,
       toasts,
       toast,
       addDate,
       addBlock,
       generate,
+      applyCourseConfig,
       appendBlankRow,
       duplicateLastRow,
       duplicateRow,

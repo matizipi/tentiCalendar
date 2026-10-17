@@ -6,7 +6,7 @@ import { useStore } from '../store/StoreContext'
 export function CourseSelect({ compact = false, id }: { compact?: boolean; id?: string }) {
   const { state, activeCourse, dispatch, openDialog } = useStore();
   const autoId = useId();
-  // If there is no active course yet (e.g., state not loaded), render a placeholder select.
+  // If there is no active course yet (e.g., state not loaded or Firebase sync), render a placeholder select.
   if (!activeCourse) {
     return (
       <div className="relative">
@@ -53,15 +53,19 @@ export function CourseSelect({ compact = false, id }: { compact?: boolean; id?: 
 export function FiltersCard() {
   const { activeCourse, dispatch, range, setRange, generate, openDialog, closeDialog, toast, dialog } = useStore()
   const uid = useId()
-  const days = activeCourse.selectedDaysOfWeek
+  // Guard: activeCourse puede ser undefined durante la sincronización con Firebase.
+  const days: number[] = activeCourse?.selectedDaysOfWeek ?? []
 
   const preview = useMemo(() => {
-    const existing = new Set(activeCourse.rows.map((r) => r.date))
+    const existing = new Set(activeCourse?.rows.map((r) => r.date) ?? [])
     const all = generateDates(days, range.from, range.to)
     return { total: all.length, fresh: all.filter((d) => !existing.has(d)).length }
-  }, [activeCourse.rows, days, range.from, range.to])
+  }, [activeCourse?.rows, days, range.from, range.to])
 
-  const setDays = (next: number[]) => dispatch({ type: 'setDays', courseId: activeCourse.id, days: next })
+  const setDays = (next: number[]) => {
+    if (!activeCourse) return
+    dispatch({ type: 'setDays', courseId: activeCourse.id, days: next })
+  }
 
   const togglePreset = (presetDays: number[]) => {
     const all = presetDays.every((d) => days.includes(d))
@@ -71,6 +75,7 @@ export function FiltersCard() {
   const toggleDay = (d: number) => setDays(days.includes(d) ? days.filter((x) => x !== d) : [...days, d])
 
   const onGenerate = () => {
+    if (!activeCourse) return
     const { added, skipped } = generate(activeCourse.id, days, range.from, range.to)
     toast(
       added === 0
@@ -196,7 +201,7 @@ export function HolidayCard() {
   const { state, dispatch } = useStore()
   return (
     <div className="card">
-      <h3 className="text-base font-bold text-ink">Feriados (Arg. 2026)</h3>
+      <h3 className="text-base font-bold text-ink">Feriados (Arg. 2026-27)</h3>
       <label className="mt-2.5 flex cursor-pointer items-center gap-3 select-none">
         <span className="relative inline-flex h-6 w-11 shrink-0">
           <input

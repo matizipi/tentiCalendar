@@ -1,7 +1,7 @@
 import { arrayMove } from '@dnd-kit/sortable'
 import { findHoliday } from '../data/holidays'
-import { emptyBlock, sortRowsByDate, uid } from '../lib/schedule'
-import type { AppState, ContentBlock, CourseSchedule, ScheduleRow } from '../types'
+import { emptyBlock, sortRowsByDate, syncRowHoliday, uid } from '../lib/schedule'
+import type { AppState, ContentBlock, CourseSchedule, LocalHoliday, ScheduleRow } from '../types'
 
 export type Action =
   | { type: 'replace'; state: AppState }
@@ -10,7 +10,16 @@ export type Action =
   | { type: 'deleteCourse'; courseId: string }
   | { type: 'setActiveCourse'; courseId: string }
   | { type: 'setShowHolidays'; value: boolean }
+  | { type: 'addLocalHoliday'; holiday: LocalHoliday }
+  | { type: 'removeLocalHoliday'; id: string }
+  | { type: 'syncHolidays' }
   | { type: 'setDays'; courseId: string; days: number[] }
+  | {
+      type: 'configureCourse'
+      courseId: string
+      patch: { name?: string; days?: number[]; from?: string; to?: string }
+      rows?: ScheduleRow[]
+    }
   | { type: 'insertRows'; courseId: string; rows: ScheduleRow[]; index?: number }
   | { type: 'updateRowDate'; rowId: string; date: string }
   | { type: 'setRowHoliday'; rowId: string; isHoliday: boolean; name?: string }
@@ -34,6 +43,11 @@ const mapRow = (s: AppState, rowId: string, fn: (r: ScheduleRow) => ScheduleRow)
   courses: s.courses.map((c) =>
     c.rows.some((r) => r.id === rowId) ? { ...c, rows: c.rows.map((r) => (r.id === rowId ? fn(r) : r)) } : c,
   ),
+})
+
+const withSyncedHolidays = (s: AppState): AppState => ({
+  ...s,
+  courses: s.courses.map((c) => ({ ...c, rows: c.rows.map((r) => syncRowHoliday(r, s.localHolidays)) })),
 })
 
 export function reducer(state: AppState, a: Action): AppState {
@@ -67,8 +81,30 @@ export function reducer(state: AppState, a: Action): AppState {
     case 'setShowHolidays':
       return { ...state, showHolidays: a.value }
 
+    case 'addLocalHoliday':
+      return withSyncedHolidays({ ...state, localHolidays: [...(state.localHolidays ?? []), a.holiday] })
+
+    case 'removeLocalHoliday':
+      return withSyncedHolidays({
+        ...state,
+        localHolidays: (state.localHolidays ?? []).filter((h) => h.id !== a.id),
+      })
+
+    case 'syncHolidays':
+      return withSyncedHolidays(state)
+
     case 'setDays':
       return mapCourse(state, a.courseId, (c) => ({ ...c, selectedDaysOfWeek: [...a.days].sort() }))
+
+    case 'configureCourse':
+      return mapCourse(state, a.courseId, (c) => ({
+        ...c,
+        ...(a.patch.name !== undefined ? { courseName: a.patch.name } : {}),
+        ...(a.patch.days ? { selectedDaysOfWeek: [...a.patch.days].sort() } : {}),
+        ...(a.patch.from ? { rangeFrom: a.patch.from } : {}),
+        ...(a.patch.to ? { rangeTo: a.patch.to } : {}),
+        ...(a.rows ? { rows: a.rows } : {}),
+      }))
 
     case 'insertRows':
       return mapCourse(state, a.courseId, (c) => {
@@ -77,21 +113,17 @@ export function reducer(state: AppState, a: Action): AppState {
       })
 
     case 'updateRowDate':
-      return mapRow(state, a.rowId, (r) => {
-        if (r.holidayManual) return { ...r, date: a.date }
-        const h = findHoliday(a.date)
-        const { holidayName: _drop, ...rest } = r
-        return { ...rest, date: a.date, isHoliday: !!h, ...(h ? { holidayName: h.name } : {}) }
-      })
+      return mapRow(state, a.rowId, (r) => syncRowHoliday({ ...r, date: a.date }, state.localHolidays))
 
     case 'setRowHoliday':
       return mapRow(state, a.rowId, (r) => {
-        const { holidayName: _drop, ...rest } = r
+        const { holidayName: _drop, holidayType: _type, ...rest } = r
         if (!a.isHoliday) {
           // Si coincide con un feriado nacional y se desmarcó, se respeta la decisión manual.
           return { ...rest, isHoliday: false, holidayManual: true }
         }
-        const name = a.name ?? findHoliday(r.date)?.name ?? 'Feriado'
+        const found = findHoliday(r.date, state.localHolidays)
+        const name = a.name ?? found?.name ?? 'Feriado'
         return { ...rest, isHoliday: true, holidayName: name, holidayManual: true }
       })
 

@@ -11,9 +11,11 @@ import { Modal } from './ui/Modal'
 /* ───────────────────────── Agregar fecha ───────────────────────── */
 function AddDateForm() {
   const { state, activeCourse, addDate, closeDialog, toast } = useStore()
-  const [courseId, setCourseId] = useState(activeCourse.id)
-  const course = state.courses.find((c) => c.id === courseId) ?? activeCourse
-  const [date, setDate] = useState(() => nextDateAfter(activeCourse.rows, activeCourse.selectedDaysOfWeek))
+  // Guard: activeCourse puede ser undefined durante la sincronización con Firebase.
+  const fallbackCourse = activeCourse ?? state.courses[0]
+  const [courseId, setCourseId] = useState(fallbackCourse?.id ?? '')
+  const course = state.courses.find((c) => c.id === courseId) ?? fallbackCourse
+  const [date, setDate] = useState(() => nextDateAfter(fallbackCourse?.rows ?? [], fallbackCourse?.selectedDaysOfWeek ?? []))
   const holiday = date ? findHoliday(date) : undefined
 
   const submit = (e: FormEvent) => {

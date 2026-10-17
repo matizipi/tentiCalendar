@@ -1,4 +1,4 @@
-import { Printer } from 'lucide-react'
+import { Flower2, Printer } from 'lucide-react'
 
 export function Header() {
   return (
@@ -21,6 +21,10 @@ export function Header() {
               strokeLinecap="round"
             />
           </svg>
+        </span>{' '}
+        <span className="inline-flex items-center gap-1.5 align-baseline text-[0.62em] font-semibold tracking-wide whitespace-nowrap text-rasp-dark italic">
+          de Florcita
+          <Flower2 aria-hidden className="size-[0.8em] -rotate-12 text-rasp" strokeWidth={2.2} />
         </span>
       </h1>
 
